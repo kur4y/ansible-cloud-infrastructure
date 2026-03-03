@@ -1,0 +1,38 @@
+---
+- name: Server Initialization and Swap Configuration
+  hosts: cloud1
+  become: yes # run tasks as root (sudo equivalent)
+
+  tasks:
+    - name: Check if swap file already exists
+      stat:
+        path: /swapfile
+      register: swap_stat
+
+    - name: Allocate 2GB for the swap file
+      command: fallocate -l 2G /swapfile
+      when: not swap_stat.stat.exists
+
+    - name: Restrict permissions to root
+      file:
+        path: /swapfile
+        mode: '0600'
+      when: not swap_stat.stat.exists
+
+    - name: Format the file as swap space
+      command: mkswap /swapfile
+      when: not swap_stat.stat.exists
+
+    - name: Enable the swap memory
+      command: swapon /swapfile
+      when: not swap_stat.stat.exists
+
+    - name: Make the swap configuration persistent across reboots
+      mount:
+        name: none
+        src: /swapfile
+        fstype: swap
+        opts: sw
+        passno: 0
+        dump: 0
+        state: present
