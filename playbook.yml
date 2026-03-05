@@ -4,6 +4,7 @@
   become: yes # run tasks as root (sudo equivalent)
 
   tasks:
+    # swap
     - name: Check if swap file already exists
       stat:
         path: /swapfile
@@ -36,3 +37,102 @@
         passno: 0
         dump: 0
         state: present
+
+    # docker
+    - name: Update apt cache and install dependencies
+      apt:
+        pkg:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - software-properties-common
+        state: present
+        update_cache: yes
+
+    - name: Add Docker GPG apt Key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Add Docker Repository
+      apt_repository:
+        repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_facts['distribution_release'] }} stable"
+        state: present
+
+    - name: Install Docker Engine and Docker Compose plugin
+      apt:
+        pkg:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-compose-plugin
+        state: present
+        update_cache: yes
+
+    - name: Ensure Docker service is running and enabled on boot
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    # SSL/TLS certification
+    - name: Install Certbot
+      apt:
+        name: certbot
+        state: present
+
+    - name: Check if SSL certificate already exists
+      stat:
+        path: /etc/letsencrypt/live/cloud1ty.duckdns.org/fullchain.pem
+      register: ssl_cert
+
+    - name: Stop Nginx container temporarily to free port 80 for Certbot
+      command: docker stop cloud1_nginx
+      ignore_errors: yes
+      when: not ssl_cert.stat.exists
+
+    - name: Generate SSL certificate via Certbot standalone
+      command: >
+        certbot certonly --standalone
+        -d cloud1ty.duckdns.org
+        --non-interactive
+        --agree-tos
+        -m admin@cloud1ty.duckdns.org
+      when: not ssl_cert.stat.exists
+
+    # file tranfers
+    - name: Create project directory on remote server
+      file:
+        path: /opt/cloud1
+        state: directory
+        mode: '0755'
+
+    - name: Copy configuration files to remote server
+      copy:
+        src: "{{ item }}"
+        dest: /opt/cloud1/
+      loop:
+        - docker-compose.yml
+        - .env
+        - nginx.conf
+
+    - name: Start Docker Compose services
+      command: docker compose up -d
+      args:
+        chdir: /opt/cloud1
+    
+        # config wordpress
+    - name: Wait for containers to initialize
+      pause:
+        seconds: 20
+
+    - name: Install and configure WordPress via WP-CLI
+      command: >
+        docker compose exec -T wordpress sh -c '
+        curl -sO https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar &&
+        chmod +x wp-cli.phar &&
+        mv wp-cli.phar /usr/local/bin/wp &&
+        wp core is-installed --allow-root || wp core install --url=$WP_URL --title=$WP_TITLE --admin_user=$WP_ADMIN_USER --admin_password=$WP_ADMIN_PASSWORD --admin_email=$WP_ADMIN_EMAIL --allow-root --path=/var/www/html &&
+        wp user get $WP_USER_LOGIN --allow-root || wp user create $WP_USER_LOGIN $WP_USER_EMAIL --user_pass=$WP_USER_PASSWORD --role=author --allow-root --path=/var/www/html'
+      args:
+        chdir: /opt/cloud1
