@@ -1,0 +1,40 @@
+---
+name: Ansible Cloud Infrastructure Audit
+
+"on":
+  push:
+    branches: ["main", "master"]
+  pull_request:
+    branches: ["main", "master"]
+
+jobs:
+  security-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # check ansible syntax and best practices
+      - name: Ansible Lint
+        uses: ansible/ansible-lint@v6
+        with:
+          args: playbook.yml
+
+      # verify yaml files
+      - name: YAML Lint
+        uses: ibiqlik/action-yamllint@v3
+        with:
+          file_or_dir: "."
+
+      # validate docker compose config.
+      - name: Docker Compose Check
+        run: docker compose config -q
+
+      # scan infrastructure config. files for vulnerabilities
+      - name: Trivy FS Scan (Security Audit)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          format: 'table'
+          exit-code: '1'
+          severity: 'CRITICAL,HIGH'
