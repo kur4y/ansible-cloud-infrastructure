@@ -1,5 +1,7 @@
 # Ansible Cloud Infrastructure
 
+![CI/CD Audit](https://github.com/kur4y/ansible-cloud-infrastructure/actions/workflows/audit.yml/badge.svg)
+
 > "There is no cloud, it's just someone else's computer."
 
 ## 📜 About
@@ -7,7 +9,7 @@ This repository contains an Infrastructure as Code (IaC) project that automates 
 
 ## 🏗️ Architecture & Technologies
 Each process runs in its own dedicated and isolated container, complying with strict deployment standards.
-* **Provisioning & Automation:** Ansibleaa
+* **Provisioning & Automation:** Ansible
 * **Orchestration:** Docker Compose
 * **Reverse Proxy:** Nginx (Alpine)
 * **Application:** WordPress (PHP-FPM)
@@ -29,9 +31,9 @@ To run this deployment, your control node (local machine) needs:
 2. Ensure your `.env` and `inventory.ini` are properly configured (do not push these to public repositories).
 3. Run the Ansible playbook:
 
-\`\`\`bash
+```bash
 ansible-playbook -i inventory.ini playbook.yml
-\`\`\`
+```
 
 The script will automatically:
 - Configure server memory swap.
